@@ -11,7 +11,7 @@ use image::{DynamicImage, ImageError};
 use imageproc::drawing::{draw_text_mut, text_size};
 
 pub use ab_glyph::{FontRef, PxScale};
-pub use image::Rgba;
+pub use image::{Rgba, open};
 
 #[derive(Debug)]
 pub enum TextOnImageError {
