@@ -190,6 +190,7 @@ pub fn text_on_image<T: AsRef<str>>(
                             {
                                 buffer.push(word_char);
                             } else {
+                                buffer.push('-');
                                 lines_altered.push(buffer);
                                 buffer = String::new();
                             }
