@@ -2,7 +2,7 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::cast_possible_truncation)]
 
-//! A library to make placing text on images easier. Extends the functionality of the [draw_text_mut](https://docs.rs/imageproc/0.23.0/imageproc/drawing/fn.draw_text_mut.html) function from [imageproc](https://docs.rs/imageproc/0.23.0/imageproc/index.html).
+//! A library to make placing text on images easier. Extends the functionality of the [draw_text_mut](https://docs.rs/imageproc/latest/imageproc/drawing/fn.draw_text_mut.html) function from [imageproc](https://docs.rs/imageproc/latest/imageproc/index.html).
 
 use std::fmt::Display;
 
