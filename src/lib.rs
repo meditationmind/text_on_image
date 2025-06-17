@@ -1,10 +1,14 @@
-//! A library to make placing text on images easier. Extends draw_text_mut's functionality from [imageproc](https://docs.rs/imageproc/0.23.0/imageproc/index.html).
+#![warn(clippy::pedantic)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::cast_possible_truncation)]
+
+//! A library to make placing text on images easier. Extends the functionality of the [draw_text_mut](https://docs.rs/imageproc/0.23.0/imageproc/drawing/fn.draw_text_mut.html) function from [imageproc](https://docs.rs/imageproc/0.23.0/imageproc/index.html).
 
 use std::fmt::Display;
 
+use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use image::{DynamicImage, ImageError, Rgba};
-use imageproc::drawing::draw_text_mut;
-use rusttype::{point, Font, Scale};
+use imageproc::drawing::{draw_text_mut, text_size};
 
 #[derive(Debug)]
 pub enum TextOnImageError {
@@ -42,10 +46,10 @@ impl WrapBehavior {
     }
 }
 
-/// A bundle of font related values.
+/// A bundle of font-related values.
 pub struct FontBundle<'a> {
-    font: &'a Font<'a>,
-    scale: Scale,
+    font: &'a FontRef<'a>,
+    scale: PxScale,
     color: Rgba<u8>,
 }
 
@@ -60,10 +64,14 @@ impl Display for FontBundle<'_> {
 }
 
 impl<'a> FontBundle<'a> {
-    pub fn new(font_: &'a Font<'a>, scale_: Scale, color_: Rgba<u8>) -> Self {
-        if scale_.x <= 0. || scale_.y <= 0. {
-            panic!("text_on_image: FontBundle scale.x or scale.y cannot be <= 0.0!");
-        }
+    /// # Panics
+    ///
+    /// Will panic if [`FontBundle`] `scale.x` or `scale.y` is negative
+    pub fn new(font_: &'a FontRef<'a>, scale_: PxScale, color_: Rgba<u8>) -> Self {
+        assert!(
+            !(scale_.x <= 0. || scale_.y <= 0.),
+            "text_on_image: FontBundle scale.x or scale.y cannot be <= 0.0!"
+        );
         FontBundle {
             font: font_,
             scale: scale_,
@@ -71,10 +79,14 @@ impl<'a> FontBundle<'a> {
         }
     }
 
-    pub fn set_scale(&mut self, scale_: Scale) {
-        if scale_.x <= 0. || scale_.y <= 0. {
-            panic!("text_on_image: FontBundle scale.x or scale.y cannot be <= 0.0!");
-        }
+    /// # Panics
+    ///
+    /// Will panic if [`FontBundle`] `scale.x` or `scale.y` is negative
+    pub fn set_scale(&mut self, scale_: PxScale) {
+        assert!(
+            !(scale_.x <= 0. || scale_.y <= 0.),
+            "text_on_image: FontBundle scale.x or scale.y cannot be <= 0.0!"
+        );
         self.scale = scale_;
     }
 
@@ -83,22 +95,27 @@ impl<'a> FontBundle<'a> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Draws text on an image with support for text jusification, vertical anchor, and line wrapping.
+///
+/// # Panics
+///
+/// Will panic if [`WrapBehavior::Wrap`] `max_width` is below 2 em
 pub fn text_on_image<T: AsRef<str>>(
     image: &mut DynamicImage,
     text: T,
     font_bundle: &FontBundle<'_>,
     pixels_from_left: i32,
     pixels_from_top: i32,
-    horizontal_justify: TextJustify,
-    vertical_anchor: VerticalAnchor,
-    wrap_behavior: WrapBehavior,
+    horizontal_justify: &TextJustify,
+    vertical_anchor: &VerticalAnchor,
+    wrap_behavior: &WrapBehavior,
 ) {
-    let lines: Vec<&str> = text.as_ref().lines().map(|line| line.trim()).collect();
+    let lines: Vec<&str> = text.as_ref().lines().map(str::trim).collect();
     match wrap_behavior {
         WrapBehavior::NoWrap => position_and_draw(
             image,
-            lines,
+            &lines,
             font_bundle,
             pixels_from_left,
             pixels_from_top,
@@ -106,9 +123,11 @@ pub fn text_on_image<T: AsRef<str>>(
             vertical_anchor,
         ),
         WrapBehavior::Wrap(max_width) => {
-            if max_width < get_text_width(font_bundle, "mm") {
-                panic!("text_on_image: Cannot set max_width for wrapping below 2 ems! Try setting max_width to at least {}", get_text_width(font_bundle, "mm"));
-            }
+            assert!(
+                (max_width >= &get_text_width(font_bundle, "mm")),
+                "text_on_image: Cannot set max_width for wrapping below 2 ems! Try setting max_width to at least {}",
+                get_text_width(font_bundle, "mm")
+            );
             let mut lines_altered: Vec<String> = vec![];
             for &line in &lines {
                 let mut buffer: String = String::new();
@@ -131,41 +150,41 @@ pub fn text_on_image<T: AsRef<str>>(
                     {
                         //Add word to line
                         if cfg!(debug_assertions) {
-                            println!("Word {} gets added to line", word);
+                            println!("Word {word} gets added to line");
                         }
                         if buffer.is_empty() {
                             buffer += word;
                         } else {
                             buffer = buffer + " " + word;
                         }
-                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > max_width
+                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > *max_width
                         && buffer.is_empty()
                     {
                         //add partial word with a dash at the end
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if get_text_width(font_bundle, buffer.clone() + "-") <= max_width {
-                                buffer = buffer + &word_char.to_string();
+                            if get_text_width(font_bundle, buffer.clone() + "-") <= *max_width {
+                                buffer.push(word_char);
                             } else {
-                                buffer += "-";
+                                buffer.push('-');
                                 lines_altered.push(buffer);
                                 buffer = String::new();
-                                buffer = buffer + &word_char.to_string();
+                                buffer.push(word_char);
                             }
                         }
-                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > max_width
+                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > *max_width
                         && !buffer.is_empty()
                     {
                         if cfg!(debug_assertions) {
-                            println!("Word {} goes over max width && buffer is not empty.", word);
+                            println!("Word {word} goes over max width && buffer is not empty.");
                         }
                         //write buffer to lines_altered, empty buffer, evaluate as new line
                         lines_altered.push(buffer);
                         buffer = String::new();
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if get_text_width(font_bundle, buffer.clone() + "-") <= max_width {
-                                buffer = buffer + &word_char.to_string();
+                            if get_text_width(font_bundle, buffer.clone() + "-") <= *max_width {
+                                buffer.push(word_char);
                             } else {
                                 buffer += "-";
                                 lines_altered.push(buffer);
@@ -176,39 +195,35 @@ pub fn text_on_image<T: AsRef<str>>(
                 }
                 lines_altered.push(buffer);
             }
-            let lines_altered: Vec<&str> = lines_altered.iter().map(|line| line.as_str()).collect();
+            let lines_altered: Vec<&str> = lines_altered.iter().map(String::as_str).collect();
             if cfg!(debug_assertions) {
-                println!("Lines altered:\n{:?}", lines_altered);
+                println!("Lines altered:\n{lines_altered:?}");
             }
             position_and_draw(
                 image,
-                lines_altered,
+                &lines_altered,
                 font_bundle,
                 pixels_from_left,
                 pixels_from_top,
                 horizontal_justify,
                 vertical_anchor,
-            )
+            );
         }
     }
 }
 
 /// Helper function to get text width.
 fn get_text_width<T: AsRef<str>>(font_bundle: &FontBundle, text: T) -> u32 {
-    font_bundle
-        .font
-        .layout(text.as_ref(), font_bundle.scale, point(0., 0.))
-        .map(|glyph| glyph.position().x + glyph.unpositioned().h_metrics().advance_width)
-        .last()
-        .unwrap_or(0.) as u32
+    text_size(font_bundle.scale, &font_bundle.font, text.as_ref()).0
 }
 
 /// Helper function to get text height.
 fn get_text_height(font_bundle: &FontBundle) -> i32 {
-    let v_metrics = font_bundle.font.v_metrics(font_bundle.scale);
-    (v_metrics.ascent - v_metrics.descent + v_metrics.line_gap) as i32
+    let v_metrics = font_bundle.font.as_scaled(font_bundle.scale);
+    (v_metrics.ascent() - v_metrics.descent() + v_metrics.line_gap()) as i32
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Draws text on an image with a small cross where the coordinates are.
 pub fn text_on_image_draw_debug<T: AsRef<str>>(
     image: &mut DynamicImage,
@@ -216,9 +231,9 @@ pub fn text_on_image_draw_debug<T: AsRef<str>>(
     font_bundle: &FontBundle<'_>,
     pixels_from_left: i32,
     pixels_from_top: i32,
-    horizontal_justify: TextJustify,
-    vertical_justify: VerticalAnchor,
-    wrap_behavior: WrapBehavior,
+    horizontal_justify: &TextJustify,
+    vertical_justify: &VerticalAnchor,
+    wrap_behavior: &WrapBehavior,
 ) {
     imageproc::drawing::draw_cross_mut(
         image,
@@ -240,20 +255,20 @@ pub fn text_on_image_draw_debug<T: AsRef<str>>(
 
 fn position_and_draw(
     image: &mut DynamicImage,
-    lines: Vec<&str>,
+    lines: &[&str],
     font_bundle: &FontBundle<'_>,
     pixels_from_left: i32,
     pixels_from_top: i32,
-    horizontal_justify: TextJustify,
-    vertical_anchor: VerticalAnchor,
+    horizontal_justify: &TextJustify,
+    vertical_anchor: &VerticalAnchor,
 ) {
-    let lines_len = lines.len() as i32;
-    let mut current_line = 0;
-    for &line in &lines {
+    let lines_len = lines.len().cast_signed() as i32;
+    for (i, &line) in lines.iter().enumerate() {
         if cfg!(debug_assertions) {
             println!("{} width: {}", line, get_text_width(font_bundle, line));
         }
-        let vertical_offset = match vertical_anchor {
+        let current_line = i.cast_signed() as i32;
+        let vertical_offset: i32 = match vertical_anchor {
             VerticalAnchor::Top => get_text_height(font_bundle) * current_line,
             VerticalAnchor::Center => {
                 (get_text_height(font_bundle) * current_line
@@ -270,16 +285,15 @@ fn position_and_draw(
         draw_text_mut(
             image,
             font_bundle.color,
-            pixels_from_left - horizontal_offset as i32,
+            pixels_from_left - horizontal_offset.cast_signed(),
             pixels_from_top + vertical_offset,
             font_bundle.scale,
-            font_bundle.font,
+            &font_bundle.font,
             line,
         );
         if cfg!(debug_assertions) {
-            println!("pixels_from_left for line {}: {}", line, pixels_from_left);
+            println!("pixels_from_left for line {line}: {pixels_from_left}");
         }
-        current_line += 1;
     }
 }
 

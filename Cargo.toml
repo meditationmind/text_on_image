@@ -2,7 +2,7 @@
 name = "text_on_image"
 version = "0.1.0"
 authors = ["Wyatt Bowen"]
-edition = "2021"
+edition = "2024"
 
 readme = "README.md"
 description = "An easier way to place text on images."
@@ -17,6 +17,6 @@ keywords = ["image","text","imageproc"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-image = "0.24.8"
-imageproc = "0.23.0"
-rusttype = "0.9.3"
+ab_glyph = "0.2.29"
+image = "0.25.6"
+imageproc = "0.25.0"
