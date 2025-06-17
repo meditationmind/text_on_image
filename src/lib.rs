@@ -135,12 +135,14 @@ pub fn text_on_image<T: AsRef<str>>(
             for &line in &lines {
                 let mut buffer: String = String::new();
                 for word in line.split_whitespace() {
+                    let buffer_copy = buffer.clone();
+                    let buffer_width = get_text_width(font_bundle, buffer_copy.as_str());
+                    let space_word = String::from(" ") + word;
+                    let buffer_space_word_width =
+                        buffer_width + get_text_width(font_bundle, space_word.as_str());
                     if cfg!(debug_assertions) {
                         println!(
-                            "\"{}\" has width {}. Compare to max_width {}",
-                            buffer.clone() + " " + word,
-                            get_text_width(font_bundle, buffer.clone() + " " + word),
-                            max_width
+                            "\"{buffer_copy} {word}\" has width {buffer_space_word_width}. Compare to max_width {max_width}"
                         );
                     }
                     let optional_space_width: u32 = if buffer.is_empty() {
@@ -148,48 +150,46 @@ pub fn text_on_image<T: AsRef<str>>(
                     } else {
                         0
                     };
-                    if get_text_width(font_bundle, buffer.clone() + " " + word)
-                        <= max_width + optional_space_width
-                    {
-                        //Add word to line
+                    if buffer_space_word_width <= max_width + optional_space_width {
+                        // Add word to line
                         if cfg!(debug_assertions) {
                             println!("Word {word} gets added to line");
                         }
                         if buffer.is_empty() {
-                            buffer += word;
+                            buffer.push_str(word);
                         } else {
-                            buffer = buffer + " " + word;
+                            buffer.push_str(space_word.as_str());
                         }
-                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > *max_width
-                        && buffer.is_empty()
-                    {
-                        //add partial word with a dash at the end
+                    } else if buffer_space_word_width > *max_width && buffer.is_empty() {
+                        // Add partial word with a dash at the end
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if get_text_width(font_bundle, buffer.clone() + "-") <= *max_width {
+                            if (get_text_width(font_bundle, buffer.as_str())
+                                + get_text_width(font_bundle, "-"))
+                                <= *max_width
+                            {
                                 buffer.push(word_char);
                             } else {
                                 buffer.push('-');
                                 lines_altered.push(buffer);
-                                buffer = String::new();
-                                buffer.push(word_char);
+                                buffer = String::from(word_char);
                             }
                         }
-                    } else if get_text_width(font_bundle, buffer.clone() + " " + word) > *max_width
-                        && !buffer.is_empty()
-                    {
+                    } else if buffer_space_word_width > *max_width && !buffer.is_empty() {
                         if cfg!(debug_assertions) {
                             println!("Word {word} goes over max width && buffer is not empty.");
                         }
-                        //write buffer to lines_altered, empty buffer, evaluate as new line
+                        // Write buffer to lines_altered, empty buffer, evaluate as new line
                         lines_altered.push(buffer);
                         buffer = String::new();
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if get_text_width(font_bundle, buffer.clone() + "-") <= *max_width {
+                            if (get_text_width(font_bundle, buffer.as_str())
+                                + get_text_width(font_bundle, "-"))
+                                <= *max_width
+                            {
                                 buffer.push(word_char);
                             } else {
-                                buffer += "-";
                                 lines_altered.push(buffer);
                                 buffer = String::new();
                             }
@@ -222,8 +222,8 @@ fn get_text_width<T: AsRef<str>>(font_bundle: &FontBundle, text: T) -> u32 {
 
 /// Helper function to get text height.
 fn get_text_height(font_bundle: &FontBundle) -> i32 {
-    let v_metrics = font_bundle.font.as_scaled(font_bundle.scale);
-    (v_metrics.ascent() - v_metrics.descent() + v_metrics.line_gap()) as i32
+    let scaled_font = font_bundle.font.as_scaled(font_bundle.scale);
+    (scaled_font.ascent() - scaled_font.descent() + scaled_font.line_gap()) as i32
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -268,7 +268,7 @@ fn position_and_draw(
     let lines_len = lines.len().cast_signed() as i32;
     for (i, &line) in lines.iter().enumerate() {
         if cfg!(debug_assertions) {
-            println!("{} width: {}", line, get_text_width(font_bundle, line));
+            println!("{line} width: {}", get_text_width(font_bundle, line));
         }
         let current_line = i.cast_signed() as i32;
         let vertical_offset: i32 = match vertical_anchor {
