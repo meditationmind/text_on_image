@@ -6,9 +6,12 @@
 
 use std::fmt::Display;
 
-use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
-use image::{DynamicImage, ImageError, Rgba};
+use ab_glyph::{Font, ScaleFont};
+use image::{DynamicImage, ImageError};
 use imageproc::drawing::{draw_text_mut, text_size};
+
+pub use ab_glyph::{FontRef, PxScale};
+pub use image::Rgba;
 
 #[derive(Debug)]
 pub enum TextOnImageError {
