@@ -96,6 +96,17 @@ impl<'a> FontBundle<'a> {
     pub fn set_color(&mut self, color_: Rgba<u8>) {
         self.color = color_;
     }
+
+    /// Helper function to get text width.
+    pub fn text_width<T: AsRef<str>>(&self, text: T) -> u32 {
+        text_size(self.scale, &self.font, text.as_ref()).0
+    }
+
+    /// Helper function to get text height.
+    pub fn text_height(&self) -> i32 {
+        let scaled_font = self.font.as_scaled(self.scale);
+        (scaled_font.ascent() - scaled_font.descent() + scaled_font.line_gap()) as i32
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -127,26 +138,26 @@ pub fn text_on_image<T: AsRef<str>>(
         ),
         WrapBehavior::Wrap(max_width) => {
             assert!(
-                (max_width >= &get_text_width(font_bundle, "mm")),
+                (max_width >= &font_bundle.text_width("mm")),
                 "text_on_image: Cannot set max_width for wrapping below 2 ems! Try setting max_width to at least {}",
-                get_text_width(font_bundle, "mm")
+                font_bundle.text_width("mm")
             );
             let mut lines_altered: Vec<String> = vec![];
             for &line in &lines {
                 let mut buffer: String = String::new();
                 for word in line.split_whitespace() {
                     let buffer_copy = buffer.clone();
-                    let buffer_width = get_text_width(font_bundle, buffer_copy.as_str());
+                    let buffer_width = font_bundle.text_width(buffer_copy.as_str());
                     let space_word = String::from(" ") + word;
                     let buffer_space_word_width =
-                        buffer_width + get_text_width(font_bundle, space_word.as_str());
+                        buffer_width + font_bundle.text_width(space_word.as_str());
                     if cfg!(debug_assertions) {
                         println!(
                             "\"{buffer_copy} {word}\" has width {buffer_space_word_width}. Compare to max_width {max_width}"
                         );
                     }
                     let optional_space_width: u32 = if buffer.is_empty() {
-                        get_text_width(font_bundle, " ")
+                        font_bundle.text_width(" ")
                     } else {
                         0
                     };
@@ -164,8 +175,8 @@ pub fn text_on_image<T: AsRef<str>>(
                         // Add partial word with a dash at the end
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if (get_text_width(font_bundle, buffer.as_str())
-                                + get_text_width(font_bundle, "-"))
+                            if (font_bundle.text_width(buffer.as_str())
+                                + font_bundle.text_width("-"))
                                 <= *max_width
                             {
                                 buffer.push(word_char);
@@ -184,8 +195,8 @@ pub fn text_on_image<T: AsRef<str>>(
                         buffer = String::new();
                         let word_chars = word.chars();
                         for word_char in word_chars {
-                            if (get_text_width(font_bundle, buffer.as_str())
-                                + get_text_width(font_bundle, "-"))
+                            if (font_bundle.text_width(buffer.as_str())
+                                + font_bundle.text_width("-"))
                                 <= *max_width
                             {
                                 buffer.push(word_char);
@@ -214,17 +225,6 @@ pub fn text_on_image<T: AsRef<str>>(
             );
         }
     }
-}
-
-/// Helper function to get text width.
-fn get_text_width<T: AsRef<str>>(font_bundle: &FontBundle, text: T) -> u32 {
-    text_size(font_bundle.scale, &font_bundle.font, text.as_ref()).0
-}
-
-/// Helper function to get text height.
-fn get_text_height(font_bundle: &FontBundle) -> i32 {
-    let scaled_font = font_bundle.font.as_scaled(font_bundle.scale);
-    (scaled_font.ascent() - scaled_font.descent() + scaled_font.line_gap()) as i32
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -269,22 +269,22 @@ fn position_and_draw(
     let lines_len = lines.len().cast_signed() as i32;
     for (i, &line) in lines.iter().enumerate() {
         if cfg!(debug_assertions) {
-            println!("{line} width: {}", get_text_width(font_bundle, line));
+            println!("{line} width: {}", font_bundle.text_width(line));
         }
         let current_line = i.cast_signed() as i32;
         let vertical_offset: i32 = match vertical_anchor {
-            VerticalAnchor::Top => get_text_height(font_bundle) * current_line,
+            VerticalAnchor::Top => font_bundle.text_height() * current_line,
             VerticalAnchor::Center => {
-                (get_text_height(font_bundle) * current_line
-                    - get_text_height(font_bundle) * (lines_len - current_line))
+                (font_bundle.text_height() * current_line
+                    - font_bundle.text_height() * (lines_len - current_line))
                     / 2
             }
-            VerticalAnchor::Bottom => -(get_text_height(font_bundle) * (lines_len - current_line)),
+            VerticalAnchor::Bottom => -(font_bundle.text_height() * (lines_len - current_line)),
         };
         let horizontal_offset = match horizontal_justify {
             TextJustify::Left => 0,
-            TextJustify::Center => get_text_width(font_bundle, line) / 2,
-            TextJustify::Right => get_text_width(font_bundle, line),
+            TextJustify::Center => font_bundle.text_width(line) / 2,
+            TextJustify::Right => font_bundle.text_width(line),
         };
         draw_text_mut(
             image,
