@@ -19,4 +19,4 @@ keywords = ["image","text","imageproc"]
 [dependencies]
 ab_glyph = "0.2.30"
 image = "0.25.6"
-imageproc = "0.25.0"
+imageproc = "0.26.0"
