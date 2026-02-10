@@ -1,5 +1,4 @@
 #![warn(clippy::pedantic)]
-#![allow(clippy::must_use_candidate)]
 #![allow(clippy::cast_possible_truncation)]
 
 //! A library to make placing text on images easier. Extends the functionality of the [draw_text_mut](https://docs.rs/imageproc/latest/imageproc/drawing/fn.draw_text_mut.html) function from [imageproc](https://docs.rs/imageproc/latest/imageproc/index.html).
@@ -44,6 +43,7 @@ pub enum WrapBehavior {
     Wrap(u32),
 }
 impl WrapBehavior {
+    #[must_use]
     pub fn new(max_width: u32) -> Self {
         WrapBehavior::Wrap(max_width)
     }
@@ -70,6 +70,7 @@ impl<'a> FontBundle<'a> {
     /// # Panics
     ///
     /// Will panic if [`FontBundle`] `scale.x` or `scale.y` is negative
+    #[must_use]
     pub fn new(font_: &'a FontRef<'a>, scale_: PxScale, color_: Rgba<u8>) -> Self {
         assert!(
             !(scale_.x <= 0. || scale_.y <= 0.),
@@ -98,11 +99,13 @@ impl<'a> FontBundle<'a> {
     }
 
     /// Helper function to get text width.
+    #[must_use]
     pub fn text_width<T: AsRef<str>>(&self, text: T) -> u32 {
         text_size(self.scale, &self.font, text.as_ref()).0
     }
 
     /// Helper function to get text height.
+    #[must_use]
     pub fn text_height(&self) -> i32 {
         let scaled_font = self.font.as_scaled(self.scale);
         (scaled_font.ascent() - scaled_font.descent() + scaled_font.line_gap()) as i32
